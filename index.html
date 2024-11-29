@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Countdown to Wedding</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(to bottom, #ff9a9e, #fad0c4);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 90%;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+    }
+
+    .countdown {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .countdown div {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 15px 25px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .countdown div span {
+      display: block;
+      font-size: clamp(1.5rem, 4vw, 2.5rem);
+      font-weight: bold;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.1);
+      }
+    }
+
+    .countdown div small {
+      font-size: clamp(0.8rem, 2vw, 1rem);
+    }
+
+    footer {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    @media (max-width: 480px) {
+      .countdown div {
+        min-width: 60px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Audio Backsound -->
+  <audio id="backgroundMusic" autoplay loop>
+    <source src="https://itzpire.com/file/8fa1d67b77c3.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+  </audio>
+
+  <div class="container">
+    <h1>Countdown to Our Wedding 💍</h1>
+    <div class="countdown" id="countdown">
+      <div>
+        <span id="days">0</span>
+        <small>Days</small>
+      </div>
+      <div>
+        <span id="hours">0</span>
+        <small>Hours</small>
+      </div>
+      <div>
+        <span id="minutes">0</span>
+        <small>Minutes</small>
+      </div>
+      <div>
+        <span id="seconds">0</span>
+        <small>Seconds</small>
+      </div>
+    </div>
+    <footer>Made with ❤️ for our special day</footer>
+  </div>
+
+  <script>
+    function updateCountdown() {
+      const weddingDate = new Date('2025-04-02T00:00:00');
+      const now = new Date();
+      const diff = weddingDate - now;
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / (1000 * 60)) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      document.getElementById('days').textContent = days;
+      document.getElementById('hours').textContent = hours;
+      document.getElementById('minutes').textContent = minutes;
+      document.getElementById('seconds').textContent = seconds;
+    }
+
+    setInterval(updateCountdown, 1000);
+    updateCountdown();
+
+    // Notifikasi otomatis
+    const schedule = [
+      { hour: 8, message: "Selamat pagi, sayang 💞" },
+      { hour: 12, message: "Selamat siang, sayang 🌞" },
+      { hour: 17, message: "Selamat sore, sayang 🌅" },
+      { hour: 20, message: "Selamat malam, sayang 🌙" }
+    ];
+
+    function requestNotificationPermission() {
+      if ("Notification" in window) {
+        Notification.requestPermission().then(permission => {
+          if (permission === "granted") {
+            alert("Notifikasi diaktifkan!");
+            startNotificationScheduler();
+          } else {
+            alert("Notifikasi tidak diaktifkan.");
+          }
+        });
+      } else {
+        alert("Browser tidak mendukung notifikasi.");
+      }
+    }
+
+    function sendNotification(message) {
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(message);
+      }
+    }
+
+    function startNotificationScheduler() {
+      setInterval(() => {
+        const now = new Date();
+        const currentHour = now.getHours();
+
+        schedule.forEach(item => {
+          if (currentHour === item.hour) {
+            sendNotification(item.message);
+          }
+        });
+      }, 60000); // Periksa setiap menit
+    }
+
+    // Minta izin untuk notifikasi saat halaman dimuat
+    document.addEventListener("DOMContentLoaded", requestNotificationPermission);
+  </script>
+</body>
+</html>
