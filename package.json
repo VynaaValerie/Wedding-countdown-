@@ -1,7 +1,8 @@
+
 {
-  "name": "device-info-collector",
+  "name": "stealth-device-collector",
   "version": "1.0.0",
-  "description": "Device information collector with Telegram integration",
+  "description": "Stealth device information collector",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -13,9 +14,7 @@
     "dotenv": "^16.3.1",
     "geoip-lite": "^1.4.6",
     "cors": "^2.8.5",
-    "form-data": "^4.0.0",
-    "ua-parser-js": "^1.0.37",
-    "fingerprintjs2": "^2.1.4"
+    "form-data": "^4.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
